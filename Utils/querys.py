@@ -901,8 +901,6 @@ class Querys:
                 TareasProyectoModel.estado == True
             ).count()
             
-            print(f"total tareas: {total_tareas}")
-            
             if total_tareas == 0:
                 return 0.00
             
