@@ -92,18 +92,12 @@ class TareasProyecto:
             self.db.commit()
             self.db.refresh(tarea)
             
-            print(f"tarea actualizada: proyecto# {tarea.id_proyecto}, estado tarea {tarea.id_estado_tarea}")
-            
             # Actualizar progreso del proyecto (ya hace commit internamente)
             proyecto = self.querys.actualizar_progreso_proyecto(tarea.id_proyecto)
             
             # Devolver tanto los datos de la tarea como el progreso actualizado del proyecto
             resultado = tarea.to_dict()
-            
-            print(f"resultado proyecto: {proyecto.progreso}")
             resultado['progreso_proyecto'] = float(proyecto.progreso)
-            
-            print(f"📊 Progreso del proyecto guardado: {proyecto.progreso}%")
             
             return self.tools.output(200, "Estado de tarea actualizado exitosamente", resultado)
             

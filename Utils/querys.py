@@ -616,9 +616,7 @@ class Querys:
                 'id_proyecto': id_proyecto,
                 'id_propuesta': id_propuesta
             })
-            
-            print(f"Propuesta {id_propuesta} actualizada con proyecto {id_proyecto}")
-            
+
         except Exception as e:
             print(f"Error en actualizar_propuesta_con_proyecto: {str(e)}")
             # No lanzar excepción para no romper el flujo si la columna no existe
@@ -896,9 +894,7 @@ class Querys:
             # ID del estado "Hecha" según script SQL (estados_tareas.sql)
             # 1: Pendiente, 2: En progreso, 3: Hecha
             ID_ESTADO_HECHA = 3
-            
-            print(f"✅ Usando ID de estado 'Hecha': {ID_ESTADO_HECHA}")
-            
+
             # Contar total de tareas
             total_tareas = self.db.query(TareasProyectoModel).filter(
                 TareasProyectoModel.id_proyecto == proyecto_id,
@@ -908,7 +904,6 @@ class Querys:
             print(f"total tareas: {total_tareas}")
             
             if total_tareas == 0:
-                print(f"ℹ️ Proyecto {proyecto_id} no tiene tareas")
                 return 0.00
             
             # Contar tareas completadas (solo las que están en estado "Hecha" = ID 3)
@@ -917,13 +912,10 @@ class Querys:
                 TareasProyectoModel.id_estado_tarea == ID_ESTADO_HECHA,
                 TareasProyectoModel.estado == True
             ).count()
-            
-            print(f"📊 Proyecto {proyecto_id}: {tareas_completadas} tareas completadas de {total_tareas} totales")
-            
+
             # Calcular porcentaje
             progreso = (tareas_completadas / total_tareas) * 100
-            print(f"📈 Progreso calculado: {round(progreso, 2)}%")
-            
+
             return round(progreso, 2)
             
         except Exception as e:

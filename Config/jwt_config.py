@@ -4,7 +4,7 @@ import jwt
 from typing import Optional
 
 # Configuración JWT
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "tu_clave_secreta_super_segura_cambiala_en_produccion_2024")
+SECRET_KEY = os.getenv("MY_SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 horas
 
