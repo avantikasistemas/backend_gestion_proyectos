@@ -89,7 +89,7 @@ class Querys:
             print(f"Error en validar_login: {str(ex)}")
             raise CustomException("Error al validar credenciales")
 
-    def crear_propuesta(self, titulo: str, resumen: str, impacto: int, macroprocesos_str: str, 
+    def crear_propuesta(self, titulo: str, resumen: str, macroprocesos_str: str, 
                        id_estado: int, id_usuario: int, nombre_usuario: str, codigo: str):
         """
         Crea una nueva propuesta en la base de datos.
@@ -115,7 +115,6 @@ class Querys:
                 codigo=codigo,
                 titulo=titulo,
                 resumen=resumen,
-                impacto=impacto,
                 macroprocesos_ids=macroprocesos_str,
                 id_estado=id_estado,
                 id_usuario_creador=id_usuario,
@@ -181,16 +180,18 @@ class Querys:
             print(f"Error en obtener_estado_por_codigo: {str(e)}")
             raise CustomException("Error al obtener el estado")
 
-    def listar_propuestas(self, id_estado: int = None, texto: str = None):
+    def listar_propuestas(self, id_estado: int = None, texto: str = None, pagina: int = 1, limite: int = 12):
         """
-        Lista todas las propuestas activas con filtros opcionales.
+        Lista todas las propuestas activas con filtros opcionales y paginación.
         
         Args:
             id_estado: Filtro por ID de estado (opcional)
             texto: Filtro por texto en título o resumen (opcional)
+            pagina: Número de página (default: 1)
+            limite: Cantidad de registros por página (default: 12)
             
         Returns:
-            list: Lista de tuplas (propuesta, estado)
+            dict: Diccionario con propuestas, total y paginación
         """
         try:            
             # Query base con join
@@ -221,7 +222,25 @@ class Querys:
             # Ordenar por fecha de creación descendente
             query = query.order_by(desc(PropuestasModel.created_at))
             
-            return query.all()
+            # Obtener total de registros antes de paginar
+            total = query.count()
+            
+            # Calcular offset
+            offset = (pagina - 1) * limite
+            
+            # Aplicar paginación
+            propuestas_paginadas = query.offset(offset).limit(limite).all()
+            
+            # Calcular total de páginas
+            total_paginas = (total + limite - 1) // limite  # Redondeo hacia arriba
+            
+            return {
+                'propuestas': propuestas_paginadas,
+                'total': total,
+                'pagina': pagina,
+                'limite': limite,
+                'total_paginas': total_paginas
+            }
             
         except Exception as e:
             print(f"Error en listar_propuestas: {str(e)}")
@@ -467,7 +486,6 @@ class Querys:
     def obtener_propuestas_aprobadas_sin_proyecto(self):
         """
         Obtiene propuestas que están aprobadas y NO tienen proyecto asignado.
-        Usa SQL directo para evitar problemas con el modelo.
         
         Returns:
             list: Lista de propuestas aprobadas sin proyecto
@@ -476,38 +494,29 @@ class Querys:
             # ID del estado "Aprobada" según script SQL (estados_propuestas.sql)
             ID_ESTADO_APROBADA = 4
             
-            # Consulta SQL directa
-            sql = text("""
-                SELECT 
-                    p.id,
-                    p.codigo,
-                    p.titulo,
-                    p.resumen,
-                    p.impacto,
-                    p.nombre_creador,
-                    p.created_at
-                FROM intranet_propuestas p
-                WHERE p.id_estado = :id_estado
-                    AND p.estado = 1
-                    AND (p.id_proyecto IS NULL OR p.id_proyecto = 0)
-                ORDER BY p.created_at DESC
-            """)
+            # Consulta con SQLAlchemy ORM
+            propuestas = self.db.query(PropuestasModel).filter(
+                PropuestasModel.id_estado == ID_ESTADO_APROBADA,
+                PropuestasModel.estado == 1,
+                or_(
+                    PropuestasModel.id_proyecto.is_(None),
+                    PropuestasModel.id_proyecto == 0
+                )
+            ).order_by(desc(PropuestasModel.created_at)).all()
             
-            result = self.db.execute(sql, {'id_estado': ID_ESTADO_APROBADA})
-            
-            propuestas = []
-            for row in result:
-                propuestas.append({
-                    'id': row.id,
-                    'codigo': row.codigo,
-                    'titulo': row.titulo,
-                    'resumen': row.resumen,
-                    'impacto': row.impacto,
-                    'nombre_creador': row.nombre_creador,
-                    'created_at': row.created_at.isoformat() if row.created_at else None
+            # Formatear resultado
+            resultado = []
+            for p in propuestas:
+                resultado.append({
+                    'id': p.id,
+                    'codigo': p.codigo,
+                    'titulo': p.titulo,
+                    'resumen': p.resumen,
+                    'nombre_creador': p.nombre_creador,
+                    'created_at': p.created_at.isoformat() if p.created_at else None
                 })
             
-            return propuestas
+            return resultado
             
         except Exception as e:
             print(f"Error en obtener_propuestas_aprobadas_sin_proyecto: {str(e)}")

@@ -21,7 +21,6 @@ class Propuestas:
         try:
             titulo = data.get("titulo", "").strip()
             resumen = data.get("resumen", "").strip()
-            impacto = data.get("impacto")
             macroprocesos = data.get("macroprocesos", [])  # Lista de IDs
             accion = data.get("accion", "borrador")  # 'borrador' o 'enviar'
             id_usuario = data.get("id_usuario")
@@ -62,7 +61,6 @@ class Propuestas:
             nueva_propuesta = self.querys.crear_propuesta(
                 titulo=titulo,
                 resumen=resumen,
-                impacto=impacto,
                 macroprocesos_str=macroprocesos_str,
                 id_estado=estado_obj.id,
                 id_usuario=id_usuario,
@@ -87,28 +85,46 @@ class Propuestas:
         Obtiene todas las propuestas con sus estados.
         
         Args:
-            filtros: Diccionario con filtros opcionales (id_estado, texto)
+            filtros: Diccionario con filtros opcionales (id_estado, texto, pagina, limite)
             
         Returns:
-            Lista de propuestas
+            Lista de propuestas con paginación
         """
         try:
             # Extraer filtros
             id_estado = filtros.get("id_estado") if filtros else None
             texto = filtros.get("texto") if filtros else None
+            pagina = filtros.get("pagina", 1) if filtros else 1
+            limite = filtros.get("limite", 12) if filtros else 12
             
-            # Obtener propuestas usando querys
-            result = self.querys.listar_propuestas(id_estado=id_estado, texto=texto)
+            # Obtener propuestas usando querys con paginación
+            resultado = self.querys.listar_propuestas(
+                id_estado=id_estado, 
+                texto=texto,
+                pagina=pagina,
+                limite=limite
+            )
             
             # Formatear respuesta
             propuestas = []
-            for propuesta_obj, estado_obj in result:
+            for propuesta_obj, estado_obj in resultado['propuestas']:
                 propuesta_dict = propuesta_obj.to_dict()
                 propuesta_dict["nombre_estado"] = estado_obj.nombre
                 propuesta_dict["codigo_estado"] = estado_obj.codigo
                 propuestas.append(propuesta_dict)
             
-            return self.tools.output(200, "Propuestas obtenidas correctamente", propuestas)
+            # Devolver con metadata de paginación
+            respuesta_data = {
+                'propuestas': propuestas,
+                'paginacion': {
+                    'total': resultado['total'],
+                    'pagina': resultado['pagina'],
+                    'limite': resultado['limite'],
+                    'total_paginas': resultado['total_paginas']
+                }
+            }
+            
+            return self.tools.output(200, "Propuestas obtenidas correctamente", respuesta_data)
             
         except Exception as e:
             print(f"Error al obtener propuestas: {str(e)}")
