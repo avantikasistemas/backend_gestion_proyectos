@@ -447,7 +447,20 @@ class Querys:
             if not propuesta:
                 raise CustomException("Propuesta no encontrada")
             
-            # Obtener el estado
+            # Obtener el estado actual de la propuesta
+            estado_actual = self.db.query(EstadosPropuestasModel).filter(
+                EstadosPropuestasModel.id == propuesta.id_estado,
+                EstadosPropuestasModel.estado == 1
+            ).first()
+            
+            # Validar que no se pueda cambiar el estado si ya está rechazada o aprobada
+            if estado_actual and estado_actual.codigo == 'RECHAZADA':
+                raise CustomException("No se puede cambiar el estado de una propuesta rechazada")
+            
+            if estado_actual and estado_actual.codigo == 'APROBADA':
+                raise CustomException("No se puede cambiar el estado de una propuesta aprobada")
+            
+            # Obtener el estado nuevo
             estado = self.db.query(EstadosPropuestasModel).filter(
                 EstadosPropuestasModel.codigo == codigo_estado,
                 EstadosPropuestasModel.estado == 1
@@ -458,6 +471,10 @@ class Querys:
             
             # Actualizar el estado
             propuesta.id_estado = estado.id
+            
+            # Si es aprobada, guardar la fecha de aprobación
+            if codigo_estado == 'APROBADA':
+                propuesta.fecha_aprobacion = datetime.now()
             
             # Si es rechazada, guardar el motivo
             if codigo_estado == 'RECHAZADA':
@@ -513,7 +530,8 @@ class Querys:
                     'titulo': p.titulo,
                     'resumen': p.resumen,
                     'nombre_creador': p.nombre_creador,
-                    'created_at': p.created_at.isoformat() if p.created_at else None
+                    'created_at': p.created_at.isoformat() if p.created_at else None,
+                    'fecha_aprobacion': p.fecha_aprobacion.isoformat() if p.fecha_aprobacion else None
                 })
             
             return resultado
@@ -877,6 +895,13 @@ class Querys:
             
             if not tarea:
                 raise CustomException("Tarea no encontrada")
+            
+            # ID del estado "Hecha" según script SQL
+            ID_ESTADO_HECHA = 3
+            
+            # Validar que no se pueda cambiar el estado si ya está en "Hecha"
+            if tarea.id_estado_tarea == ID_ESTADO_HECHA:
+                raise CustomException("No se puede cambiar el estado de una tarea que ya está marcada como 'Hecha'")
             
             # Verificar que el estado existe
             estado = self.db.query(EstadosTareasModel).filter(

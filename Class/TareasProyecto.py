@@ -18,6 +18,7 @@ class TareasProyecto:
             id_proyecto = data.get("id_proyecto")
             titulo = data.get("titulo")
             responsable = data.get("responsable")
+            fecha_vencimiento = data.get("fecha_vencimiento")
             
             if not id_proyecto or not titulo or not responsable:
                 raise CustomException("Los campos id_proyecto, titulo y responsable son requeridos")
@@ -35,6 +36,7 @@ class TareasProyecto:
                 'titulo': titulo,
                 'responsable': responsable,
                 'id_estado_tarea': id_estado_inicial,
+                'fecha_vencimiento': datetime.fromisoformat(fecha_vencimiento) if fecha_vencimiento else None,
                 'estado': True,
                 'created_at': datetime.now()
             }
