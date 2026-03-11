@@ -63,3 +63,15 @@ def cambiar_estado_propuesta(request: Request, db: Session = Depends(get_db)):
     data = getattr(request.state, "json_data", {})
     response = Propuestas(db).cambiar_estado(data)
     return response
+
+@propuestas_router.post('/propuestas/clasificar', tags=["Propuestas"], response_model=dict)
+@http_decorator
+def clasificar_propuesta(request: Request, db: Session = Depends(get_db)):
+    """
+    Endpoint para clasificar una propuesta.
+    Actualiza únicamente id_tipo_clasificacion y comentario_clasificacion.
+    Requiere: id_propuesta, id_tipo_clasificacion, comentario_clasificacion
+    """
+    data = getattr(request.state, "json_data", {})
+    response = Propuestas(db).clasificar(data)
+    return response

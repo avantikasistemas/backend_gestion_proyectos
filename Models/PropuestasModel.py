@@ -13,12 +13,13 @@ class PropuestasModel(BASE):
     titulo = Column(String(200), nullable=False)
     resumen = Column(Text)
     # descripcion = Column(Text)  # Descomentar después de ejecutar alter_propuestas_add_descripcion.sql
+    id_macroproceso_solicitante = Column(Integer, nullable=True)  # FK a intranet_macroprocesos
     macroprocesos_ids = Column(String(200))  # IDs separados por coma "1,3,5"
-    id_estado = Column(Integer, nullable=False)  # FK a intranet_estados_propuestas
     id_usuario_creador = Column(Integer, nullable=False)  # FK a intranet_usuarios_proyectos
     nombre_creador = Column(String(100))  # Nombre del usuario que creó
-    motivo_rechazo = Column(Text)  # Motivo de rechazo si el estado es Rechazada
-    fecha_aprobacion = Column(DateTime, nullable=True)  # Fecha cuando fue aprobada la propuesta
+    id_tipo_clasificacion = Column(Integer, nullable=True)  # FK a intranet_tipos_clasificacion
+    comentario_clasificacion = Column(Text, nullable=True)  # Comentario al clasificar la propuesta
+    id_origen_iniciativa = Column(Integer, nullable=True)  # FK a intranet_propuestas_origen
     id_proyecto = Column(Integer, nullable=True)  # FK a intranet_proyectos - Descomentar después de ejecutar proyectos.sql
     estado = Column(SmallInteger, default=1, nullable=False)  # 1=activo, 0=inactivo
     created_at = Column(DateTime, default=func.getdate(), nullable=False)
@@ -32,12 +33,13 @@ class PropuestasModel(BASE):
             "titulo": self.titulo,
             "resumen": self.resumen,
             # "descripcion": getattr(self, 'descripcion', None),  # Usar getattr por si no existe la columna
+            "id_macroproceso_solicitante": self.id_macroproceso_solicitante,
             "macroprocesos_ids": self.macroprocesos_ids,
-            "id_estado": self.id_estado,
             "id_usuario_creador": self.id_usuario_creador,
             "nombre_creador": self.nombre_creador,
-            "motivo_rechazo": self.motivo_rechazo,
-            "fecha_aprobacion": self.fecha_aprobacion.isoformat() if self.fecha_aprobacion else None,
+            "id_tipo_clasificacion": self.id_tipo_clasificacion,
+            "comentario_clasificacion": self.comentario_clasificacion,
+            "id_origen_iniciativa": self.id_origen_iniciativa,
             "id_proyecto": self.id_proyecto,  # Usar getattr por si no existe la columna
             "estado": self.estado,
             "created_at": self.created_at.isoformat() if self.created_at else None,

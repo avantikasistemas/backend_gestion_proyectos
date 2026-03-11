@@ -38,3 +38,37 @@ def actualizar_estado_tarea(request: Request, db: Session = Depends(get_db)):
     data = getattr(request.state, "json_data", {})
     response = TareasProyecto(db).actualizar_estado_tarea(data)
     return response
+
+
+@tareas_router.post('/tareas/mover-columna', tags=["Tareas Proyecto"], response_model=dict)
+@http_decorator
+def mover_columna_tarea(request: Request, db: Session = Depends(get_db)):
+    """
+    Endpoint para mover una tarea a otra columna del kanban
+    Requiere: id_tarea (int), id_kanban (int)
+    """
+    data = getattr(request.state, "json_data", {})
+    response = TareasProyecto(db).mover_columna(data)
+    return response
+
+
+@tareas_router.post('/tareas/actualizar', tags=["Tareas Proyecto"], response_model=dict)
+@http_decorator
+def actualizar_tarea(request: Request, db: Session = Depends(get_db)):
+    """
+    Endpoint para actualizar los datos de una tarea
+    Requiere: id_tarea (int) + campos a editar
+    """
+    data = getattr(request.state, "json_data", {})
+    response = TareasProyecto(db).actualizar_tarea(data)
+    return response
+
+
+@tareas_router.post('/tareas/kanbans', tags=["Tareas Proyecto"], response_model=dict)
+@http_decorator
+def listar_kanbans(request: Request, db: Session = Depends(get_db)):
+    """
+    Endpoint para listar los tipos de columna kanban disponibles
+    """
+    response = TareasProyecto(db).listar_kanbans()
+    return response

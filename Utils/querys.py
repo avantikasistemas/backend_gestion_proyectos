@@ -18,6 +18,8 @@ from Models.EstadosProyectosModel import EstadosProyectosModel
 from Models.CriteriosProyectoModel import CriteriosProyectoModel
 from Models.TareasProyectoModel import TareasProyectoModel
 from Models.EstadosTareasModel import EstadosTareasModel
+from Models.TiposClasificacionModel import TiposClasificacionModel
+from Models.IntranetProyectosTiposKanbanModel import IntranetProyectosTiposKanbanModel
 
 class Querys:
 
@@ -89,17 +91,16 @@ class Querys:
             print(f"Error en validar_login: {str(ex)}")
             raise CustomException("Error al validar credenciales")
 
-    def crear_propuesta(self, titulo: str, resumen: str, macroprocesos_str: str, 
-                       id_estado: int, id_usuario: int, nombre_usuario: str, codigo: str):
+    def crear_propuesta(self, titulo: str, resumen: str, macroprocesos_str: str,
+                       id_usuario: int, nombre_usuario: str, codigo: str,
+                       id_macroproceso_solicitante: int = None):
         """
         Crea una nueva propuesta en la base de datos.
         
         Args:
             titulo: Título de la propuesta
             resumen: Descripción de la propuesta
-            impacto: Cantidad de personas impactadas
             macroprocesos_str: IDs de macroprocesos separados por coma "1,3,5"
-            id_estado: ID del estado
             id_usuario: ID del usuario creador
             nombre_usuario: Nombre del usuario creador
             codigo: Código único de la propuesta
@@ -115,8 +116,9 @@ class Querys:
                 codigo=codigo,
                 titulo=titulo,
                 resumen=resumen,
+                id_macroproceso_solicitante=id_macroproceso_solicitante,
                 macroprocesos_ids=macroprocesos_str,
-                id_estado=id_estado,
+                # id_estado=id_estado,
                 id_usuario_creador=id_usuario,
                 nombre_creador=nombre_usuario,
                 estado=1
@@ -180,7 +182,7 @@ class Querys:
             print(f"Error en obtener_estado_por_codigo: {str(e)}")
             raise CustomException("Error al obtener el estado")
 
-    def listar_propuestas(self, id_estado: int = None, texto: str = None, pagina: int = 1, limite: int = 12):
+    def listar_propuestas(self, id_estado: int = None, texto: str = None, pagina: int = 1, limite: int = 12, id_tipo_clasificacion: int = None):
         """
         Lista todas las propuestas activas con filtros opcionales y paginación.
         
@@ -197,17 +199,13 @@ class Querys:
             # Query base con join
             query = self.db.query(
                 PropuestasModel,
-                EstadosPropuestasModel
-            ).join(
-                EstadosPropuestasModel,
-                PropuestasModel.id_estado == EstadosPropuestasModel.id
             ).filter(
                 PropuestasModel.estado == 1
             )
             
-            # Aplicar filtro de estado si existe
-            if id_estado:
-                query = query.filter(PropuestasModel.id_estado == id_estado)
+            # Aplicar filtro por tipo de clasificación si existe
+            if id_tipo_clasificacion:
+                query = query.filter(PropuestasModel.id_tipo_clasificacion == id_tipo_clasificacion)
             
             # Aplicar filtro de texto si existe
             if texto:
@@ -248,22 +246,16 @@ class Querys:
 
     def obtener_propuesta_por_id(self, propuesta_id: int):
         """
-        Obtiene una propuesta específica por su ID con su estado.
+        Obtiene una propuesta por su ID.
         
         Args:
             propuesta_id: ID de la propuesta
             
         Returns:
-            tuple: (propuesta, estado) o None si no se encuentra
+            PropuestasModel o None si no se encuentra
         """
         try:
-            result = self.db.query(
-                PropuestasModel,
-                EstadosPropuestasModel
-            ).join(
-                EstadosPropuestasModel,
-                PropuestasModel.id_estado == EstadosPropuestasModel.id
-            ).filter(
+            result = self.db.query(PropuestasModel).filter(
                 PropuestasModel.id == propuesta_id,
                 PropuestasModel.estado == 1
             ).first()
@@ -381,51 +373,100 @@ class Querys:
             print(f"Error en obtener_respuestas_propuesta: {str(e)}")
             return []
 
-    def obtener_estadisticas_propuestas(self):
+    def obtener_tipo_clasificacion_por_id(self, id_tipo: int):
+        """Retorna el objeto TiposClasificacionModel con el id dado, o None si no existe."""
+        try:
+            return self.db.query(TiposClasificacionModel).filter(
+                TiposClasificacionModel.id == id_tipo,
+                TiposClasificacionModel.estado == 1
+            ).first()
+        except Exception as e:
+            print(f"Error en obtener_tipo_clasificacion_por_id: {str(e)}")
+            return None
+
+    def obtener_email_usuario_por_id(self, id_usuario: int):
+        """Retorna el email del usuario con el id dado, o None si no existe."""
+        try:
+            usuario = self.db.query(IntranetUsuariosProyectosModel).filter(
+                IntranetUsuariosProyectosModel.id == id_usuario,
+                IntranetUsuariosProyectosModel.estado == 1
+            ).first()
+            return usuario.email if usuario else None
+        except Exception as e:
+            print(f"Error en obtener_email_usuario_por_id: {str(e)}")
+            return None
+
+    def obtener_datos_email_propuesta(self, macroprocesos_ids: list, id_macroproceso_solicitante):
         """
-        Obtiene el conteo de propuestas agrupadas por estado.
-        
+        Consolida los datos necesarios para construir el correo de notificación de una propuesta:
+        nombres de macroprocesos impactados y nombre del macroproceso solicitante.
+
         Returns:
-            list: Lista de diccionarios con {estado_id, estado_nombre, estado_codigo, cantidad}
+            dict: {mp_nombres, nombre_solicitante}
         """
         try:
-            
+            # Nombres de macroprocesos impactados
+            mp_rows = self.obtener_macroprocesos_por_ids(macroprocesos_ids) if macroprocesos_ids else []
+            mp_nombres = [mp.nombre for mp in mp_rows]
+
+            # Nombre del macroproceso solicitante
+            nombre_solicitante = "—"
+            if id_macroproceso_solicitante:
+                sol_rows = self.obtener_macroprocesos_por_ids([id_macroproceso_solicitante])
+                if sol_rows:
+                    nombre_solicitante = sol_rows[0].nombre
+
+            return {
+                "mp_nombres": mp_nombres,
+                "nombre_solicitante": nombre_solicitante
+            }
+        except Exception as e:
+            print(f"Error en obtener_datos_email_propuesta: {str(e)}")
+            return {"mp_nombres": [], "nombre_solicitante": "—"}
+
+    def obtener_estadisticas_propuestas(self):
+        """
+        Obtiene el total de propuestas activas y el desglose por tipo de clasificación.
+        
+        Returns:
+            dict: { total, por_clasificacion: [{id, nombre, cantidad}] }
+        """
+        try:
+            total = self.db.query(func.count(PropuestasModel.id)).filter(
+                PropuestasModel.estado == 1
+            ).scalar()
+
             result = self.db.query(
-                EstadosPropuestasModel.id.label('estado_id'),
-                EstadosPropuestasModel.nombre.label('estado_nombre'),
-                EstadosPropuestasModel.codigo.label('estado_codigo'),
+                TiposClasificacionModel.id.label('clasificacion_id'),
+                TiposClasificacionModel.nombre.label('clasificacion_nombre'),
                 func.count(PropuestasModel.id).label('cantidad')
             ).outerjoin(
                 PropuestasModel,
-                (PropuestasModel.id_estado == EstadosPropuestasModel.id) & 
+                (PropuestasModel.id_tipo_clasificacion == TiposClasificacionModel.id) &
                 (PropuestasModel.estado == 1)
             ).filter(
-                EstadosPropuestasModel.estado == 1
+                TiposClasificacionModel.estado == 1
             ).group_by(
-                EstadosPropuestasModel.id,
-                EstadosPropuestasModel.nombre,
-                EstadosPropuestasModel.codigo
+                TiposClasificacionModel.id,
+                TiposClasificacionModel.nombre,
+                TiposClasificacionModel.orden
             ).order_by(
-                EstadosPropuestasModel.id.asc()
+                TiposClasificacionModel.orden.asc()
             ).all()
-            
-            # Formatear resultado
-            estadisticas = []
-            for row in result:
-                estadisticas.append({
-                    'estado_id': row.estado_id,
-                    'estado_nombre': row.estado_nombre,
-                    'estado_codigo': row.estado_codigo,
-                    'cantidad': row.cantidad
-                })
-            
-            return estadisticas
+
+            por_clasificacion = [
+                { 'id': r.clasificacion_id, 'nombre': r.clasificacion_nombre, 'cantidad': r.cantidad }
+                for r in result
+            ]
+
+            return { 'total': total or 0, 'por_clasificacion': por_clasificacion }
             
         except Exception as e:
             print(f"Error en obtener_estadisticas_propuestas: {str(e)}")
             raise CustomException("Error al obtener estadísticas de propuestas")
 
-    def cambiar_estado_propuesta(self, id_propuesta: int, codigo_estado: str, motivo_rechazo: str = None):
+    def cambiar_estado_propuesta(self, id_propuesta: int, codigo_estado: str,
+                                   id_tipo_clasificacion: int = None, comentario_clasificacion: str = None):
         """
         Cambia el estado de una propuesta.
         
@@ -433,6 +474,8 @@ class Querys:
             id_propuesta: ID de la propuesta
             codigo_estado: Código del nuevo estado (EN_REVISION, APROBADA, RECHAZADA)
             motivo_rechazo: Motivo del rechazo (obligatorio si estado es RECHAZADA)
+            id_tipo_clasificacion: Tipo de clasificación (obligatorio si estado es APROBADA)
+            comentario_clasificacion: Comentario de clasificación (obligatorio si estado es APROBADA)
             
         Returns:
             PropuestasModel: La propuesta actualizada
@@ -447,43 +490,14 @@ class Querys:
             if not propuesta:
                 raise CustomException("Propuesta no encontrada")
             
-            # Obtener el estado actual de la propuesta
-            estado_actual = self.db.query(EstadosPropuestasModel).filter(
-                EstadosPropuestasModel.id == propuesta.id_estado,
-                EstadosPropuestasModel.estado == 1
-            ).first()
-            
-            # Validar que no se pueda cambiar el estado si ya está rechazada o aprobada
-            if estado_actual and estado_actual.codigo == 'RECHAZADA':
-                raise CustomException("No se puede cambiar el estado de una propuesta rechazada")
-            
-            if estado_actual and estado_actual.codigo == 'APROBADA':
-                raise CustomException("No se puede cambiar el estado de una propuesta aprobada")
-            
-            # Obtener el estado nuevo
-            estado = self.db.query(EstadosPropuestasModel).filter(
-                EstadosPropuestasModel.codigo == codigo_estado,
-                EstadosPropuestasModel.estado == 1
-            ).first()
-            
-            if not estado:
-                raise CustomException(f"Estado {codigo_estado} no encontrado")
-            
-            # Actualizar el estado
-            propuesta.id_estado = estado.id
-            
-            # Si es aprobada, guardar la fecha de aprobación
+            # Si es aprobada, guardar clasificación
             if codigo_estado == 'APROBADA':
-                propuesta.fecha_aprobacion = datetime.now()
-            
-            # Si es rechazada, guardar el motivo
-            if codigo_estado == 'RECHAZADA':
-                if not motivo_rechazo or not motivo_rechazo.strip():
-                    raise CustomException("El motivo de rechazo es obligatorio")
-                propuesta.motivo_rechazo = motivo_rechazo
-            else:
-                # Limpiar motivo de rechazo si se cambia a otro estado
-                propuesta.motivo_rechazo = None
+                if not id_tipo_clasificacion:
+                    raise CustomException("El tipo de clasificación es obligatorio para aprobar")
+                if not comentario_clasificacion or not comentario_clasificacion.strip():
+                    raise CustomException("El comentario de clasificación es obligatorio para aprobar")
+                propuesta.id_tipo_clasificacion = id_tipo_clasificacion
+                propuesta.comentario_clasificacion = comentario_clasificacion.strip()
             
             self.db.commit()
             self.db.refresh(propuesta)
@@ -498,6 +512,36 @@ class Querys:
             print(f"Error en cambiar_estado_propuesta: {str(e)}")
             raise CustomException("Error al cambiar el estado de la propuesta")
 
+    def clasificar_propuesta(self, id_propuesta: int, id_tipo_clasificacion: int, comentario_clasificacion: str, id_origen_iniciativa: int = None):
+        """
+        Actualiza únicamente el tipo de clasificación y el comentario de una propuesta.
+        """
+        try:
+            propuesta = self.db.query(PropuestasModel).filter(
+                PropuestasModel.id == id_propuesta,
+                PropuestasModel.estado == 1
+            ).first()
+
+            if not propuesta:
+                raise CustomException("Propuesta no encontrada")
+
+            propuesta.id_tipo_clasificacion = id_tipo_clasificacion
+            propuesta.comentario_clasificacion = comentario_clasificacion.strip()
+            if id_origen_iniciativa:
+                propuesta.id_origen_iniciativa = id_origen_iniciativa
+
+            self.db.commit()
+            self.db.refresh(propuesta)
+            return propuesta
+
+        except CustomException as e:
+            self.db.rollback()
+            raise e
+        except Exception as e:
+            self.db.rollback()
+            print(f"Error en clasificar_propuesta: {str(e)}")
+            raise CustomException("Error al clasificar la propuesta")
+
     # ==================== MÉTODOS PARA PROYECTOS ====================
 
     def obtener_propuestas_aprobadas_sin_proyecto(self):
@@ -508,12 +552,8 @@ class Querys:
             list: Lista de propuestas aprobadas sin proyecto
         """
         try:
-            # ID del estado "Aprobada" según script SQL (estados_propuestas.sql)
-            ID_ESTADO_APROBADA = 4
-            
-            # Consulta con SQLAlchemy ORM
+            # Consulta con SQLAlchemy ORM: propuestas sin proyecto asignado
             propuestas = self.db.query(PropuestasModel).filter(
-                PropuestasModel.id_estado == ID_ESTADO_APROBADA,
                 PropuestasModel.estado == 1,
                 or_(
                     PropuestasModel.id_proyecto.is_(None),
@@ -530,8 +570,7 @@ class Querys:
                     'titulo': p.titulo,
                     'resumen': p.resumen,
                     'nombre_creador': p.nombre_creador,
-                    'created_at': p.created_at.isoformat() if p.created_at else None,
-                    'fecha_aprobacion': p.fecha_aprobacion.isoformat() if p.fecha_aprobacion else None
+                    'created_at': p.created_at.isoformat() if p.created_at else None
                 })
             
             return resultado
@@ -665,7 +704,6 @@ class Querys:
                 ProyectosModel.id,
                 ProyectosModel.titulo,
                 ProyectosModel.descripcion,
-                ProyectosModel.progreso,
                 ProyectosModel.id_propuesta,
                 ProyectosModel.fecha_creacion,
                 EstadosProyectosModel.nombre.label('nombre_estado'),
@@ -713,8 +751,8 @@ class Querys:
                 ProyectosModel.id,
                 ProyectosModel.titulo,
                 ProyectosModel.descripcion,
-                ProyectosModel.progreso,
                 ProyectosModel.id_propuesta,
+                ProyectosModel.criterios_aceptacion,
                 ProyectosModel.fecha_creacion,
                 ProyectosModel.fecha_actualizacion,
                 EstadosProyectosModel.nombre.label('nombre_estado'),
@@ -780,7 +818,30 @@ class Querys:
             print(f"Error en actualizar_estado_proyecto: {str(e)}")
             raise CustomException("Error al actualizar el estado del proyecto")
 
-    # ==================== MÉTODOS PARA CRITERIOS DE ACEPTACIÓN ====================
+    # ==================== MÉTODOS PARA CRITERIOS DE ACEPTACIÓN EN PROYECTO ====================
+
+    def actualizar_criterios_proyecto(self, proyecto_id: int, criterios: str):
+        """Actualiza el texto de criterios de aceptación del proyecto"""
+        try:
+            proyecto = self.db.query(ProyectosModel).filter(
+                ProyectosModel.id == proyecto_id,
+                ProyectosModel.estado == True
+            ).first()
+
+            if not proyecto:
+                raise CustomException("Proyecto no encontrado")
+
+            proyecto.criterios_aceptacion = criterios
+            proyecto.fecha_actualizacion = datetime.now()
+            return proyecto
+
+        except CustomException as e:
+            raise e
+        except Exception as e:
+            print(f"Error en actualizar_criterios_proyecto: {str(e)}")
+            raise CustomException("Error al actualizar los criterios de aceptación")
+
+    # ==================== MÉTODOS PARA CRITERIOS INDIVIDUALES (legacy) ====================
     
     def crear_criterio_proyecto(self, criterio_data: dict):
         """Crea un nuevo criterio de aceptación para un proyecto"""
@@ -830,6 +891,85 @@ class Querys:
             print(f"Error en toggle_criterio_completado: {str(e)}")
             raise CustomException("Error al actualizar el criterio")
 
+    def mover_columna_tarea(self, tarea_id: int, id_kanban: int):
+        """Actualiza la columna kanban de una tarea usando id_kanban"""
+        try:
+            tarea = self.db.query(TareasProyectoModel).filter(
+                TareasProyectoModel.id == tarea_id,
+                TareasProyectoModel.estado == True
+            ).first()
+
+            if not tarea:
+                raise CustomException("Tarea no encontrada")
+
+            # Verificar que el kanban existe
+            kanban = self.db.query(IntranetProyectosTiposKanbanModel).filter(
+                IntranetProyectosTiposKanbanModel.id == id_kanban,
+                IntranetProyectosTiposKanbanModel.estado == 1
+            ).first()
+            if not kanban:
+                raise CustomException("Columna kanban no encontrada")
+
+            tarea.id_kanban = id_kanban
+            tarea.updated_at = datetime.now()
+            return tarea
+
+        except CustomException as e:
+            raise e
+        except Exception as e:
+            print(f"Error en mover_columna_tarea: {str(e)}")
+            raise CustomException("Error al mover la tarea")
+
+    def listar_tipos_kanban(self):
+        """Lista todos los tipos de columna kanban activos ordenados"""
+        try:
+            kanbans = self.db.query(IntranetProyectosTiposKanbanModel).filter(
+                IntranetProyectosTiposKanbanModel.estado == 1
+            ).order_by(IntranetProyectosTiposKanbanModel.orden).all()
+            return [k.to_dict() for k in kanbans]
+        except Exception as e:
+            print(f"Error en listar_tipos_kanban: {str(e)}")
+            raise CustomException("Error al listar los tipos kanban")
+
+    def actualizar_tarea(self, tarea_id: int, data: dict):
+        """Actualiza los campos editables de una tarea"""
+        try:
+            tarea = self.db.query(TareasProyectoModel).filter(
+                TareasProyectoModel.id == tarea_id,
+                TareasProyectoModel.estado == True
+            ).first()
+
+            if not tarea:
+                raise CustomException("Tarea no encontrada")
+
+            if data.get('titulo'):
+                tarea.titulo = data['titulo']
+            if 'descripcion' in data:
+                tarea.descripcion = data['descripcion']
+            if data.get('responsable'):
+                tarea.responsable = data['responsable']
+            if 'horas_estimadas' in data:
+                tarea.horas_estimadas = data['horas_estimadas']
+            if 'horas_reales' in data:
+                tarea.horas_reales = data['horas_reales']
+            if data.get('id_kanban'):
+                kanban = self.db.query(IntranetProyectosTiposKanbanModel).filter(
+                    IntranetProyectosTiposKanbanModel.id == data['id_kanban'],
+                    IntranetProyectosTiposKanbanModel.estado == 1
+                ).first()
+                if not kanban:
+                    raise CustomException("Columna kanban no encontrada")
+                tarea.id_kanban = data['id_kanban']
+
+            tarea.updated_at = datetime.now()
+            return tarea
+
+        except CustomException as e:
+            raise e
+        except Exception as e:
+            print(f"Error en actualizar_tarea: {str(e)}")
+            raise CustomException("Error al actualizar la tarea")
+
     # ==================== MÉTODOS PARA ESTADOS DE TAREAS ====================
     
     def listar_estados_tareas(self):
@@ -860,125 +1000,32 @@ class Querys:
             raise CustomException("Error al crear la tarea del proyecto")
     
     def listar_tareas_proyecto(self, proyecto_id: int):
-        """Lista todas las tareas de un proyecto con sus estados"""
+        """Lista todas las tareas de un proyecto con su columna kanban"""
         try:
             tareas = self.db.query(
                 TareasProyectoModel,
-                EstadosTareasModel.nombre.label('nombre_estado')
+                IntranetProyectosTiposKanbanModel.nombre.label('nombre_kanban')
             ).join(
-                EstadosTareasModel,
-                TareasProyectoModel.id_estado_tarea == EstadosTareasModel.id
+                IntranetProyectosTiposKanbanModel,
+                TareasProyectoModel.id_kanban == IntranetProyectosTiposKanbanModel.id
             ).filter(
                 TareasProyectoModel.id_proyecto == proyecto_id,
                 TareasProyectoModel.estado == True
             ).order_by(TareasProyectoModel.created_at.desc()).all()
-            
+
             resultado = []
-            for tarea, nombre_estado in tareas:
+            for tarea, nombre_kanban in tareas:
                 tarea_dict = tarea.to_dict()
-                tarea_dict['nombre_estado'] = nombre_estado
+                tarea_dict['nombre_kanban'] = nombre_kanban
                 resultado.append(tarea_dict)
-            
+
             return resultado
-            
+
         except Exception as e:
             print(f"Error en listar_tareas_proyecto: {str(e)}")
             raise CustomException("Error al listar las tareas del proyecto")
     
     def actualizar_estado_tarea(self, tarea_id: int, nuevo_estado_id: int):
-        """Actualiza el estado de una tarea"""
-        try:
-            tarea = self.db.query(TareasProyectoModel).filter(
-                TareasProyectoModel.id == tarea_id,
-                TareasProyectoModel.estado == True
-            ).first()
-            
-            if not tarea:
-                raise CustomException("Tarea no encontrada")
-            
-            # ID del estado "Hecha" según script SQL
-            ID_ESTADO_HECHA = 3
-            
-            # Validar que no se pueda cambiar el estado si ya está en "Hecha"
-            if tarea.id_estado_tarea == ID_ESTADO_HECHA:
-                raise CustomException("No se puede cambiar el estado de una tarea que ya está marcada como 'Hecha'")
-            
-            # Verificar que el estado existe
-            estado = self.db.query(EstadosTareasModel).filter(
-                EstadosTareasModel.id == nuevo_estado_id
-            ).first()
-            
-            if not estado:
-                raise CustomException("Estado de tarea no encontrado")
-            
-            tarea.id_estado_tarea = nuevo_estado_id
-            tarea.updated_at = datetime.now()
-            
-            return tarea
-            
-        except CustomException as e:
-            raise e
-        except Exception as e:
-            print(f"Error en actualizar_estado_tarea: {str(e)}")
-            raise CustomException("Error al actualizar el estado de la tarea")
-    
-    def calcular_progreso_proyecto(self, proyecto_id: int):
-        """Calcula el progreso del proyecto basado en tareas completadas"""
-        try:
-            # ID del estado "Hecha" según script SQL (estados_tareas.sql)
-            # 1: Pendiente, 2: En progreso, 3: Hecha
-            ID_ESTADO_HECHA = 3
-
-            # Contar total de tareas
-            total_tareas = self.db.query(TareasProyectoModel).filter(
-                TareasProyectoModel.id_proyecto == proyecto_id,
-                TareasProyectoModel.estado == True
-            ).count()
-            
-            if total_tareas == 0:
-                return 0.00
-            
-            # Contar tareas completadas (solo las que están en estado "Hecha" = ID 3)
-            tareas_completadas = self.db.query(TareasProyectoModel).filter(
-                TareasProyectoModel.id_proyecto == proyecto_id,
-                TareasProyectoModel.id_estado_tarea == ID_ESTADO_HECHA,
-                TareasProyectoModel.estado == True
-            ).count()
-
-            # Calcular porcentaje
-            progreso = (tareas_completadas / total_tareas) * 100
-
-            return round(progreso, 2)
-            
-        except Exception as e:
-            print(f"Error en calcular_progreso_proyecto: {str(e)}")
-            return 0.00
-    
-    def actualizar_progreso_proyecto(self, proyecto_id: int):
-        """Actualiza el progreso de un proyecto automáticamente"""
-        try:
-            proyecto = self.db.query(ProyectosModel).filter(
-                ProyectosModel.id == proyecto_id,
-                ProyectosModel.estado == True
-            ).first()
-            
-            if not proyecto:
-                raise CustomException("Proyecto no encontrado")
-            
-            nuevo_progreso = self.calcular_progreso_proyecto(proyecto_id)
-            proyecto.progreso = nuevo_progreso
-            proyecto.fecha_actualizacion = datetime.now()
-            
-            # Hacer commit para persistir el progreso actualizado
-            self.db.commit()
-            # Refrescar para obtener el valor confirmado de la BD
-            self.db.refresh(proyecto)
-            
-            return proyecto
-            
-        except CustomException as e:
-            raise e
-        except Exception as e:
-            print(f"Error en actualizar_progreso_proyecto: {str(e)}")
-            raise CustomException("Error al actualizar el progreso del proyecto")
+        """Deprecated: usar mover_columna_tarea con id_kanban en su lugar"""
+        raise CustomException("El endpoint actualizar-estado está deprecado. Usa mover-columna con id_kanban")
 

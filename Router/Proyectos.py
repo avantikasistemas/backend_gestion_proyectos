@@ -68,3 +68,14 @@ def actualizar_estado_proyecto(request: Request, db: Session = Depends(get_db)):
     return response
 
 
+@proyectos_router.post('/proyectos/actualizar-criterios', tags=["Proyectos"], response_model=dict)
+@http_decorator
+def actualizar_criterios_proyecto(request: Request, db: Session = Depends(get_db)):
+    """
+    Endpoint para guardar los criterios de aceptación del proyecto
+    Requiere: id_proyecto (int), criterios_aceptacion (str)
+    """
+    data = getattr(request.state, "json_data", {})
+    response = Proyectos(db).actualizar_criterios(data)
+    return response
+

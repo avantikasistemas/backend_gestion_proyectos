@@ -13,6 +13,8 @@ from Router.EstadosProyectos import estados_proyectos_router
 from Router.CriteriosProyecto import criterios_router
 from Router.TareasProyecto import tareas_router
 from Router.EstadosTareas import estados_tareas_router
+from Router.TiposClasificacion import tipos_clasificacion_router
+from Router.OrigenIniciativa import origen_iniciativa_router
 from pathlib import Path
 
 route = Path.cwd()
@@ -40,6 +42,8 @@ app.include_router(estados_proyectos_router)
 app.include_router(criterios_router)
 app.include_router(tareas_router)
 app.include_router(estados_tareas_router)
+app.include_router(tipos_clasificacion_router)
+app.include_router(origen_iniciativa_router)
 
 BASE.metadata.create_all(bind=engine)
 

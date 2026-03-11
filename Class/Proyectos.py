@@ -44,7 +44,6 @@ class Proyectos:
                 'id_estado_proyecto': estado_inicial.id,
                 'titulo': propuesta.titulo,
                 'descripcion': descripcion,
-                'progreso': 0.00,
                 'id_usuario_creador': user_data.get("id"),
                 'estado': True,
                 'fecha_creacion': datetime.now()
@@ -63,8 +62,7 @@ class Proyectos:
                 "id": nuevo_proyecto.id,
                 "titulo": nuevo_proyecto.titulo,
                 "id_propuesta": nuevo_proyecto.id_propuesta,
-                "nombre_estado": estado_inicial.nombre,
-                "progreso": float(nuevo_proyecto.progreso)
+                "nombre_estado": estado_inicial.nombre
             }
             
             return self.tools.output(200, "Proyecto creado exitosamente", resultado)
@@ -97,7 +95,6 @@ class Proyectos:
                     "id": proyecto.id,
                     "titulo": proyecto.titulo,
                     "descripcion": proyecto.descripcion,
-                    "progreso": float(proyecto.progreso),
                     "id_propuesta": proyecto.id_propuesta,
                     "id_estado_proyecto": proyecto.id_estado_proyecto,
                     "nombre_estado": proyecto.nombre_estado,
@@ -122,7 +119,7 @@ class Proyectos:
                 "id": proyecto.id,
                 "titulo": proyecto.titulo,
                 "descripcion": proyecto.descripcion,
-                "progreso": float(proyecto.progreso),
+                "criterios_aceptacion": proyecto.criterios_aceptacion or "",
                 "id_estado_proyecto": proyecto.id_estado_proyecto,
                 "nombre_estado": proyecto.nombre_estado,
                 "creador": {
@@ -139,13 +136,34 @@ class Proyectos:
             }
             
             return self.tools.output(200, "Detalle del proyecto obtenido exitosamente", resultado)
-            
+
         except CustomException as e:
             raise e
         except Exception as e:
             print(f"Error al obtener detalle del proyecto: {str(e)}")
             raise CustomException("Error al obtener el detalle del proyecto")
 
+    def actualizar_criterios(self, data: dict):
+        """Guarda el texto de criterios de aceptación directamente en el proyecto"""
+        try:
+            proyecto_id = data.get("id_proyecto")
+            criterios = data.get("criterios_aceptacion", "")
+
+            if not proyecto_id:
+                raise CustomException("El campo id_proyecto es requerido")
+
+            self.querys.actualizar_criterios_proyecto(proyecto_id, criterios)
+            self.db.commit()
+
+            return self.tools.output(200, "Criterios actualizados", {"id_proyecto": proyecto_id})
+
+        except CustomException as e:
+            self.db.rollback()
+            raise e
+        except Exception as e:
+            self.db.rollback()
+            print(f"Error al actualizar criterios: {str(e)}")
+            raise CustomException("Error al actualizar los criterios de aceptación")
     def actualizar_estado_proyecto(self, data: dict):
         """Actualiza el estado de un proyecto"""
         try:
