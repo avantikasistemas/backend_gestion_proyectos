@@ -20,6 +20,7 @@ from Models.TareasProyectoModel import TareasProyectoModel
 from Models.EstadosTareasModel import EstadosTareasModel
 from Models.TiposClasificacionModel import TiposClasificacionModel
 from Models.IntranetProyectosTiposKanbanModel import IntranetProyectosTiposKanbanModel
+from Models.SprintProyectoModel import SprintProyectoModel
 
 class Querys:
 
@@ -960,6 +961,8 @@ class Querys:
                 if not kanban:
                     raise CustomException("Columna kanban no encontrada")
                 tarea.id_kanban = data['id_kanban']
+            if 'id_sprint' in data:
+                tarea.id_sprint = data['id_sprint']
 
             tarea.updated_at = datetime.now()
             return tarea
@@ -999,24 +1002,34 @@ class Querys:
             print(f"Error en crear_tarea_proyecto: {str(e)}")
             raise CustomException("Error al crear la tarea del proyecto")
     
-    def listar_tareas_proyecto(self, proyecto_id: int):
-        """Lista todas las tareas de un proyecto con su columna kanban"""
+    def listar_tareas_proyecto(self, proyecto_id: int, id_sprint: int = None):
+        """Lista todas las tareas de un proyecto con su columna kanban, con filtro opcional por sprint"""
         try:
-            tareas = self.db.query(
+            query = self.db.query(
                 TareasProyectoModel,
-                IntranetProyectosTiposKanbanModel.nombre.label('nombre_kanban')
+                IntranetProyectosTiposKanbanModel.nombre.label('nombre_kanban'),
+                SprintProyectoModel.nombre.label('nombre_sprint')
             ).join(
                 IntranetProyectosTiposKanbanModel,
                 TareasProyectoModel.id_kanban == IntranetProyectosTiposKanbanModel.id
+            ).outerjoin(
+                SprintProyectoModel,
+                TareasProyectoModel.id_sprint == SprintProyectoModel.id
             ).filter(
                 TareasProyectoModel.id_proyecto == proyecto_id,
                 TareasProyectoModel.estado == True
-            ).order_by(TareasProyectoModel.created_at.desc()).all()
+            )
+
+            if id_sprint is not None:
+                query = query.filter(TareasProyectoModel.id_sprint == id_sprint)
+
+            tareas = query.order_by(TareasProyectoModel.created_at.desc()).all()
 
             resultado = []
-            for tarea, nombre_kanban in tareas:
+            for tarea, nombre_kanban, nombre_sprint in tareas:
                 tarea_dict = tarea.to_dict()
                 tarea_dict['nombre_kanban'] = nombre_kanban
+                tarea_dict['nombre_sprint'] = nombre_sprint
                 resultado.append(tarea_dict)
 
             return resultado

@@ -22,6 +22,7 @@ class TareasProyecto:
             descripcion = data.get("descripcion")
             horas_estimadas = data.get("horas_estimadas")
             horas_reales = data.get("horas_reales")
+            id_sprint = data.get("id_sprint")
 
             if not id_proyecto or not titulo or not responsable:
                 raise CustomException("Los campos id_proyecto, titulo y responsable son requeridos")
@@ -36,6 +37,7 @@ class TareasProyecto:
                 'horas_estimadas': float(horas_estimadas) if horas_estimadas not in (None, '') else None,
                 'horas_reales': float(horas_reales) if horas_reales not in (None, '') else None,
                 'id_kanban': int(id_kanban),
+                'id_sprint': int(id_sprint) if id_sprint not in (None, '') else None,
                 'estado': True,
                 'created_at': datetime.now()
             }
@@ -54,14 +56,18 @@ class TareasProyecto:
             raise CustomException("Error al crear la tarea del proyecto")
 
     def listar_tareas(self, data: dict):
-        """Lista todas las tareas de un proyecto"""
+        """Lista todas las tareas de un proyecto, con filtro opcional por sprint"""
         try:
             id_proyecto = data.get("id_proyecto")
+            id_sprint = data.get("id_sprint")
             
             if not id_proyecto:
                 raise CustomException("El campo id_proyecto es requerido")
             
-            tareas = self.querys.listar_tareas_proyecto(id_proyecto)
+            tareas = self.querys.listar_tareas_proyecto(
+                id_proyecto,
+                id_sprint=int(id_sprint) if id_sprint not in (None, '') else None
+            )
             
             return self.tools.output(200, "Tareas obtenidas exitosamente", tareas)
             
@@ -136,12 +142,12 @@ class TareasProyecto:
                 raise CustomException("El campo id_tarea es requerido")
 
             campos = {}
-            for key in ('titulo', 'descripcion', 'responsable', 'horas_estimadas', 'horas_reales', 'id_kanban'):
+            for key in ('titulo', 'descripcion', 'responsable', 'horas_estimadas', 'horas_reales', 'id_kanban', 'id_sprint'):
                 if key in data:
                     val = data[key]
                     if key in ('horas_estimadas', 'horas_reales'):
                         campos[key] = float(val) if val not in (None, '') else None
-                    elif key == 'id_kanban' and val is not None:
+                    elif key in ('id_kanban', 'id_sprint') and val is not None:
                         campos[key] = int(val)
                     else:
                         campos[key] = val

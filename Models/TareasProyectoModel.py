@@ -14,6 +14,7 @@ class TareasProyectoModel(BASE):
     horas_estimadas = Column(Numeric(10, 2), nullable=True)
     horas_reales = Column(Numeric(10, 2), nullable=True)
     id_kanban = Column(Integer, ForeignKey('intranet_proyectos_tipos_kanban.id'), nullable=False)
+    id_sprint = Column(Integer, ForeignKey('intranet_proyectos_sprint.id'), nullable=True)
     estado = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.now, nullable=False)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
@@ -28,6 +29,7 @@ class TareasProyectoModel(BASE):
             "horas_estimadas": float(self.horas_estimadas) if self.horas_estimadas is not None else None,
             "horas_reales": float(self.horas_reales) if self.horas_reales is not None else None,
             "id_kanban": self.id_kanban,
+            "id_sprint": self.id_sprint,
             "estado": self.estado,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None

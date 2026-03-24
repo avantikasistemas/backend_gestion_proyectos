@@ -1,0 +1,18 @@
+from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy.sql import func
+from Config.db import BASE
+
+class SprintProyectoModel(BASE):
+    __tablename__ = "intranet_proyectos_sprint"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nombre = Column(String(50), nullable=False)
+    estado = Column(Integer, default=1, nullable=False)
+    created_at = Column(DateTime, default=func.getdate(), nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "nombre": self.nombre,
+            "estado": self.estado,
+        }
