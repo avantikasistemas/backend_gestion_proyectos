@@ -28,7 +28,9 @@ app.version = "0.0.1"
 app.add_middleware(AuthMiddleware)
 app.add_middleware(JSONMiddleware)
 app.add_middleware(
-    CORSMiddleware,allow_origins=["*"],  # Permitir todos los orígenes; para producción, especifica los orígenes permitidos.
+    CORSMiddleware,
+    # allow_origins=["*"],  # Permitir todos los orígenes; para producción, especifica los orígenes permitidos.
+    allow_origins=["https://gestion-proyectos.avantika.com.co"],
     allow_credentials=True,
     allow_methods=["*"],  # Permitir todos los métodos; puedes especificar los métodos permitidos.
     allow_headers=["*"],  # Permitir todos los encabezados; puedes especificar los encabezados permitidos.
